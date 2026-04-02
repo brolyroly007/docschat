@@ -1,5 +1,7 @@
 """Collection management endpoints."""
 
+import re
+
 from fastapi import APIRouter, HTTPException
 from loguru import logger
 
@@ -8,6 +10,18 @@ from database import get_db
 from database.repositories import delete_documents_by_collection, list_documents
 
 router = APIRouter()
+
+COLLECTION_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def _validate_collection_name(name: str) -> None:
+    """Raise HTTPException if collection name is invalid."""
+    if not COLLECTION_PATTERN.match(name):
+        raise HTTPException(
+            status_code=422,
+            detail="Collection name must contain only alphanumeric characters, underscores, "
+            "and hyphens.",
+        )
 
 
 @router.get("/collections")
@@ -29,6 +43,7 @@ async def list_collections():
 @router.delete("/collections/{name}")
 async def delete_collection(name: str):
     """Delete a collection and its document records."""
+    _validate_collection_name(name)
     client = get_chroma_client()
 
     try:
