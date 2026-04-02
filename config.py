@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     chunk_overlap: int = Field(default=200)
     top_k: int = Field(default=5)
 
+    # Streaming
+    stream_timeout: int = Field(default=120)
+
     # API Security
     api_key: str = Field(default="")
 

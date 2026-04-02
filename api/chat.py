@@ -1,6 +1,7 @@
 """Chat endpoint with SSE streaming."""
 
 import json
+import time
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -8,6 +9,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
+from config import settings
 from core.rag import RAGOrchestrator
 
 router = APIRouter()
@@ -49,6 +51,7 @@ async def chat(request: ChatRequest):
             return result
 
         async def event_generator():
+            start = time.monotonic()
             async for event in rag.stream(request.question):
                 yield {
                     "event": event["type"],
@@ -56,6 +59,13 @@ async def chat(request: ChatRequest):
                     if isinstance(event["data"], (dict, list))
                     else event["data"],
                 }
+                if time.monotonic() - start > settings.stream_timeout:
+                    logger.warning("Stream timeout exceeded")
+                    yield {
+                        "event": "error",
+                        "data": "Stream timed out",
+                    }
+                    return
 
         return EventSourceResponse(event_generator())
     except Exception as exc:
