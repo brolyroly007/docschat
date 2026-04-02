@@ -13,13 +13,16 @@ Exposes both a **FastAPI REST API** and a **Typer CLI**.
 
 ## Features
 
-- **Multi-format ingestion** — PDF, DOCX, TXT, Markdown
+- **Multi-format ingestion** — PDF, DOCX, TXT, Markdown (max 50MB per file)
 - **Pluggable embeddings** — OpenAI or local sentence-transformers
 - **Multi-LLM support** — OpenAI, Gemini, Ollama
-- **Vector search** — ChromaDB with persistent storage
+- **Vector search** — ChromaDB with persistent storage + standalone search endpoint
 - **Multi-turn chat** — Conversation history with query rephrasing
-- **Streaming** — SSE (API) and Rich Live (CLI)
-- **REST API** — Full CRUD for collections and conversations
+- **Streaming** — SSE (API) and Rich Live (CLI) with configurable timeout
+- **REST API** — Full CRUD for collections, documents, and conversations
+- **Input validation** — Question length, collection names, file types, provider names
+- **Rate limiting** — Per-IP sliding window (default 30 req/min)
+- **Connection pooling** — Singleton SQLite connection with WAL mode
 
 ## Quick Start
 
@@ -58,10 +61,12 @@ python app.py
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `POST` | `/api/chat` | Send message (streaming SSE) |
+| `POST` | `/api/search` | Vector search without LLM (returns raw results) |
 | `POST` | `/api/ingest` | Upload + ingest files |
 | `GET` | `/api/collections` | List collections |
 | `DELETE` | `/api/collections/{name}` | Delete collection |
 | `GET` | `/api/collections/{name}/documents` | List documents |
+| `DELETE` | `/api/collections/{name}/documents/{id}` | Delete individual document |
 | `GET` | `/api/conversations` | List conversations |
 | `GET` | `/api/conversations/{id}` | Get conversation history |
 | `DELETE` | `/api/conversations/{id}` | Delete conversation |
@@ -81,6 +86,8 @@ Key settings:
 | `EMBEDDING_PROVIDER` | `openai` | `openai` or `local` |
 | `CHUNK_SIZE` | `1000` | Text chunk size |
 | `TOP_K` | `5` | Number of chunks to retrieve |
+| `STREAM_TIMEOUT` | `120` | SSE stream timeout in seconds |
+| `RATE_LIMIT_RPM` | `30` | Max requests per minute per IP |
 
 ## Development
 
@@ -106,6 +113,18 @@ ruff format .
 - **aiosqlite** — Async SQLite
 - **Pydantic Settings** — Configuration
 - **Loguru** — Logging
+
+## Input Validation
+
+The API validates all inputs:
+
+- **Question**: 1-5000 characters
+- **Collection names**: alphanumeric, hyphens, underscores only (`^[a-zA-Z0-9_-]+$`)
+- **Provider**: must be `openai`, `gemini`, or `ollama`
+- **top_k**: 1-20
+- **File uploads**: max 50MB, only `.pdf`, `.docx`, `.txt`, `.md`
+
+Invalid requests return HTTP 422 with details.
 
 ## License
 
