@@ -57,11 +57,8 @@ async def delete_collection(name: str):
     except Exception as exc:
         raise HTTPException(status_code=404, detail=f"Collection '{name}' not found") from exc
 
-    db = await get_db()
-    try:
-        deleted = await delete_documents_by_collection(db, name)
-    finally:
-        await db.close()
+    db = get_db()
+    deleted = await delete_documents_by_collection(db, name)
 
     logger.info(f"Deleted collection '{name}' ({deleted} document records)")
     return {"deleted": name, "documents_removed": deleted}
@@ -70,11 +67,8 @@ async def delete_collection(name: str):
 @router.get("/collections/{name}/documents")
 async def collection_documents(name: str):
     """List documents in a collection."""
-    db = await get_db()
-    try:
-        docs = await list_documents(db, collection=name)
-    finally:
-        await db.close()
+    db = get_db()
+    docs = await list_documents(db, collection=name)
     return {"collection": name, "documents": docs}
 
 
@@ -83,35 +77,31 @@ async def delete_collection_document(collection: str, document_id: int):
     """Delete a single document from a collection (ChromaDB chunks + SQLite metadata)."""
     _validate_collection_name(collection)
 
-    # Fetch document metadata from SQLite
-    db = await get_db()
+    db = get_db()
+    doc = await get_document(db, document_id)
+    if not doc or doc["collection"] != collection:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Document {document_id} not found in collection '{collection}'",
+        )
+
+    # Delete chunks from ChromaDB
+    client = get_chroma_client()
     try:
-        doc = await get_document(db, document_id)
-        if not doc or doc["collection"] != collection:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Document {document_id} not found in collection '{collection}'",
-            )
+        chroma_collection = client.get_collection(name=collection)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Collection '{collection}' not found in ChromaDB"
+        ) from exc
 
-        # Delete chunks from ChromaDB
-        client = get_chroma_client()
-        try:
-            chroma_collection = client.get_collection(name=collection)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=404, detail=f"Collection '{collection}' not found in ChromaDB"
-            ) from exc
+    chunk_ids = [
+        hashlib.md5(f"{doc['filename']}:{i}".encode()).hexdigest()
+        for i in range(doc["chunk_count"])
+    ]
+    chroma_collection.delete(ids=chunk_ids)
 
-        chunk_ids = [
-            hashlib.md5(f"{doc['filename']}:{i}".encode()).hexdigest()
-            for i in range(doc["chunk_count"])
-        ]
-        chroma_collection.delete(ids=chunk_ids)
-
-        # Delete metadata from SQLite
-        await delete_document(db, document_id)
-    finally:
-        await db.close()
+    # Delete metadata from SQLite
+    await delete_document(db, document_id)
 
     logger.info(
         f"Deleted document {document_id} ('{doc['filename']}') "

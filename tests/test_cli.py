@@ -76,7 +76,9 @@ class TestStatusCommand:
         """Should display status information."""
         with (
             patch("cli.status_cmd.DB_PATH") as mock_path,
-            patch("cli.status_cmd.get_db", new_callable=AsyncMock),
+            patch("cli.status_cmd.init_db", new_callable=AsyncMock),
+            patch("cli.status_cmd.close_db", new_callable=AsyncMock),
+            patch("cli.status_cmd.get_db"),
             patch("cli.status_cmd.get_chroma_client") as mock_chroma,
             patch("cli.status_cmd.list_providers", return_value=[]),
         ):

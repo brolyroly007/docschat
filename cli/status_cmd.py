@@ -10,7 +10,7 @@ from rich.table import Table
 
 from config import settings
 from core.ingestion import get_chroma_client
-from database import get_db
+from database import close_db, get_db, init_db
 from database.connection import DB_PATH
 from providers import list_providers
 
@@ -32,8 +32,9 @@ async def _show_status():
     doc_count = 0
     conv_count = 0
     if db_exists:
-        db = await get_db()
+        await init_db()
         try:
+            db = get_db()
             cursor = await db.execute("SELECT COUNT(*) FROM documents")
             row = await cursor.fetchone()
             doc_count = row[0]
@@ -43,7 +44,7 @@ async def _show_status():
         except Exception:
             pass
         finally:
-            await db.close()
+            await close_db()
 
     # Vector store
     chroma_dir = Path(settings.chroma_persist_dir)

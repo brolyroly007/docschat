@@ -46,7 +46,7 @@ class TestConversationsEndpoint:
     def test_list_conversations(self, client):
         """Should return list of conversations."""
         with (
-            patch("api.conversations.get_db", new_callable=AsyncMock) as mock_get_db,
+            patch("api.conversations.get_db") as mock_get_db,
             patch(
                 "api.conversations.list_conversations",
                 new_callable=AsyncMock,
@@ -62,7 +62,7 @@ class TestConversationsEndpoint:
     def test_get_conversation_not_found(self, client):
         """Should return 404 for unknown conversation."""
         with (
-            patch("api.conversations.get_db", new_callable=AsyncMock) as mock_get_db,
+            patch("api.conversations.get_db") as mock_get_db,
             patch(
                 "api.conversations.get_conversation",
                 new_callable=AsyncMock,

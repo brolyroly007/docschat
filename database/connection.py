@@ -1,4 +1,4 @@
-"""SQLite connection manager using aiosqlite."""
+"""SQLite connection manager using aiosqlite — singleton pattern."""
 
 from pathlib import Path
 
@@ -43,23 +43,33 @@ CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id
 CREATE INDEX IF NOT EXISTS idx_conversations_collection ON conversations(collection);
 """
 
-
-async def get_db() -> aiosqlite.Connection:
-    """Get a database connection."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    db = await aiosqlite.connect(str(DB_PATH))
-    db.row_factory = aiosqlite.Row
-    await db.execute("PRAGMA journal_mode=WAL")
-    await db.execute("PRAGMA foreign_keys=ON")
-    return db
+_connection: aiosqlite.Connection | None = None
 
 
 async def init_db():
-    """Initialize database schema."""
-    db = await get_db()
-    try:
-        await db.executescript(SCHEMA)
-        await db.commit()
-        logger.info(f"Database initialized at {DB_PATH}")
-    finally:
-        await db.close()
+    """Create the singleton connection, enable WAL mode, and run schema."""
+    global _connection
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _connection = await aiosqlite.connect(str(DB_PATH))
+    _connection.row_factory = aiosqlite.Row
+    await _connection.execute("PRAGMA journal_mode=WAL")
+    await _connection.execute("PRAGMA foreign_keys=ON")
+    await _connection.executescript(SCHEMA)
+    await _connection.commit()
+    logger.info(f"Database initialized at {DB_PATH}")
+
+
+def get_db() -> aiosqlite.Connection:
+    """Return the existing singleton connection (sync — no await needed)."""
+    if _connection is None:
+        raise RuntimeError("Database not initialized. Call init_db() first.")
+    return _connection
+
+
+async def close_db():
+    """Close the singleton connection."""
+    global _connection
+    if _connection is not None:
+        await _connection.close()
+        _connection = None
+        logger.info("Database connection closed")

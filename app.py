@@ -16,7 +16,7 @@ from loguru import logger
 
 from api import router as api_router
 from config import settings
-from database import init_db
+from database import close_db, init_db
 from middleware import RateLimitMiddleware
 
 
@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized")
     yield
     logger.info("Shutting down DocsChat")
+    await close_db()
 
 
 app = FastAPI(

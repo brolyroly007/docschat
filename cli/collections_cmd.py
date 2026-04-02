@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from core.ingestion import get_chroma_client
-from database import get_db
+from database import close_db, get_db, init_db
 from database.repositories import delete_documents_by_collection
 
 console = Console()
@@ -67,8 +67,9 @@ def delete(
 
 
 async def _delete_docs(name: str) -> int:
-    db = await get_db()
+    await init_db()
     try:
+        db = get_db()
         return await delete_documents_by_collection(db, name)
     finally:
-        await db.close()
+        await close_db()

@@ -56,11 +56,8 @@ class RAGOrchestrator:
         if self.conversation_id:
             return self.conversation_id
 
-        db = await get_db()
-        try:
-            self.conversation_id = await create_conversation(db, collection=self.collection)
-        finally:
-            await db.close()
+        db = get_db()
+        self.conversation_id = await create_conversation(db, collection=self.collection)
         return self.conversation_id
 
     async def _get_chat_history(self) -> list[dict]:
@@ -68,12 +65,8 @@ class RAGOrchestrator:
         if not self.conversation_id:
             return []
 
-        db = await get_db()
-        try:
-            msgs = await get_messages(db, self.conversation_id)
-        finally:
-            await db.close()
-
+        db = get_db()
+        msgs = await get_messages(db, self.conversation_id)
         return [{"role": m["role"], "content": m["content"]} for m in msgs]
 
     async def _rephrase_query(self, question: str, history: list[dict]) -> str:
@@ -127,23 +120,20 @@ class RAGOrchestrator:
         result = await provider.generate(messages)
 
         # Store messages
-        db = await get_db()
-        try:
-            await add_message(db, conv_id, "user", question)
-            await add_message(
-                db,
-                conv_id,
-                "assistant",
-                result.content,
-                sources=sources,
-                tokens_used=result.tokens_used,
-            )
-            # Set conversation title from first question
-            if not history:
-                title = question[:100] + ("..." if len(question) > 100 else "")
-                await update_conversation(db, conv_id, title=title)
-        finally:
-            await db.close()
+        db = get_db()
+        await add_message(db, conv_id, "user", question)
+        await add_message(
+            db,
+            conv_id,
+            "assistant",
+            result.content,
+            sources=sources,
+            tokens_used=result.tokens_used,
+        )
+        # Set conversation title from first question
+        if not history:
+            title = question[:100] + ("..." if len(question) > 100 else "")
+            await update_conversation(db, conv_id, title=title)
 
         return {
             "conversation_id": conv_id,
@@ -191,15 +181,12 @@ class RAGOrchestrator:
             yield {"type": "token", "data": chunk}
 
         # Store messages
-        db = await get_db()
-        try:
-            await add_message(db, conv_id, "user", question)
-            await add_message(db, conv_id, "assistant", full_response, sources=sources)
-            if not history:
-                title = question[:100] + ("..." if len(question) > 100 else "")
-                await update_conversation(db, conv_id, title=title)
-        finally:
-            await db.close()
+        db = get_db()
+        await add_message(db, conv_id, "user", question)
+        await add_message(db, conv_id, "assistant", full_response, sources=sources)
+        if not history:
+            title = question[:100] + ("..." if len(question) > 100 else "")
+            await update_conversation(db, conv_id, title=title)
 
         yield {
             "type": "done",

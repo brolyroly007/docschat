@@ -88,18 +88,15 @@ async def ingest_file(file_path: Path, collection_name: str | None = None) -> di
     )
 
     # Record in SQLite
-    db = await get_db()
-    try:
-        doc_id = await create_document(
-            db,
-            filename=file_path.name,
-            collection=collection_name,
-            file_type=file_path.suffix.lower(),
-            file_size=file_path.stat().st_size,
-            chunk_count=len(chunks),
-        )
-    finally:
-        await db.close()
+    db = get_db()
+    doc_id = await create_document(
+        db,
+        filename=file_path.name,
+        collection=collection_name,
+        file_type=file_path.suffix.lower(),
+        file_size=file_path.stat().st_size,
+        chunk_count=len(chunks),
+    )
 
     result = {
         "document_id": doc_id,
