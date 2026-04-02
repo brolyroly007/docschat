@@ -17,6 +17,7 @@ from loguru import logger
 from api import router as api_router
 from config import settings
 from database import init_db
+from middleware import RateLimitMiddleware
 
 
 @asynccontextmanager
@@ -35,6 +36,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Rate limiting
+app.add_middleware(RateLimitMiddleware)
 
 # CORS
 app.add_middleware(

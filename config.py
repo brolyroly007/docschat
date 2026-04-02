@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     # API Security
     api_key: str = Field(default="")
 
+    # Rate Limiting
+    rate_limit_rpm: int = Field(default=30)
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
