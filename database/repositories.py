@@ -38,6 +38,20 @@ async def list_documents(db: aiosqlite.Connection, collection: str | None = None
     return [dict(row) for row in rows]
 
 
+async def get_document(db: aiosqlite.Connection, document_id: int) -> dict | None:
+    """Get a single document by ID."""
+    cursor = await db.execute("SELECT * FROM documents WHERE id = ?", (document_id,))
+    row = await cursor.fetchone()
+    return dict(row) if row else None
+
+
+async def delete_document(db: aiosqlite.Connection, document_id: int) -> bool:
+    """Delete a single document by ID. Returns True if found."""
+    cursor = await db.execute("DELETE FROM documents WHERE id = ?", (document_id,))
+    await db.commit()
+    return cursor.rowcount > 0
+
+
 async def delete_documents_by_collection(db: aiosqlite.Connection, collection: str) -> int:
     """Delete all documents in a collection. Returns count deleted."""
     cursor = await db.execute("DELETE FROM documents WHERE collection = ?", (collection,))

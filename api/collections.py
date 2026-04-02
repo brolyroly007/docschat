@@ -1,5 +1,6 @@
 """Collection management endpoints."""
 
+import hashlib
 import re
 
 from fastapi import APIRouter, HTTPException
@@ -7,7 +8,12 @@ from loguru import logger
 
 from core.ingestion import get_chroma_client
 from database import get_db
-from database.repositories import delete_documents_by_collection, list_documents
+from database.repositories import (
+    delete_document,
+    delete_documents_by_collection,
+    get_document,
+    list_documents,
+)
 
 router = APIRouter()
 
@@ -70,3 +76,50 @@ async def collection_documents(name: str):
     finally:
         await db.close()
     return {"collection": name, "documents": docs}
+
+
+@router.delete("/collections/{collection}/documents/{document_id}")
+async def delete_collection_document(collection: str, document_id: int):
+    """Delete a single document from a collection (ChromaDB chunks + SQLite metadata)."""
+    _validate_collection_name(collection)
+
+    # Fetch document metadata from SQLite
+    db = await get_db()
+    try:
+        doc = await get_document(db, document_id)
+        if not doc or doc["collection"] != collection:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Document {document_id} not found in collection '{collection}'",
+            )
+
+        # Delete chunks from ChromaDB
+        client = get_chroma_client()
+        try:
+            chroma_collection = client.get_collection(name=collection)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=404, detail=f"Collection '{collection}' not found in ChromaDB"
+            ) from exc
+
+        chunk_ids = [
+            hashlib.md5(f"{doc['filename']}:{i}".encode()).hexdigest()
+            for i in range(doc["chunk_count"])
+        ]
+        chroma_collection.delete(ids=chunk_ids)
+
+        # Delete metadata from SQLite
+        await delete_document(db, document_id)
+    finally:
+        await db.close()
+
+    logger.info(
+        f"Deleted document {document_id} ('{doc['filename']}') "
+        f"from collection '{collection}' ({doc['chunk_count']} chunks)"
+    )
+    return {
+        "deleted_document_id": document_id,
+        "filename": doc["filename"],
+        "collection": collection,
+        "chunks_removed": doc["chunk_count"],
+    }
